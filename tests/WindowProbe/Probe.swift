@@ -30,6 +30,7 @@ final class ProbeController: UIViewController {
     private let picture = UIView()
     private var video = CGSize(width: 1080, height: 2340)
     private var reports: [[String: Any]] = []
+    private var geometryErrors: [String] = []
     private let start = UIButton(type: .system)
 
     override func viewDidLoad() {
@@ -72,10 +73,16 @@ final class ProbeController: UIViewController {
             limits.minimumSize = preferredContentSize
             limits.maximumSize = preferredContentSize
         }
+        setNeedsUpdateOfSupportedInterfaceOrientations()
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { [weak self] error in
+            let error = error as NSError
+            self?.geometryErrors.append("\(error.domain):\(error.code) \(error.localizedDescription)")
+        }
     }
 
     private func runPhase(_ phase: Int) {
         guard let scene = view.window?.windowScene else { return }
+        geometryErrors = []
         video = phase == 1 ? CGSize(width: 1080, height: 498) : CGSize(width: 1080, height: 2340)
         apply(in: scene)
         view.setNeedsLayout()
@@ -115,6 +122,7 @@ final class ProbeController: UIViewController {
                 "maximum": dimensions(scene.sizeRestrictions?.maximumSize ?? .zero),
                 "deviceIdiom": UIDevice.current.userInterfaceIdiom.rawValue,
                 "interfaceOrientation": scene.effectiveGeometry.interfaceOrientation.rawValue,
+                "geometryErrors": geometryErrors,
                 "physicalWindow": dimensions(physical.size),
                 "physicalEdgeGap": physicalGap, "orientationGap": orientationGap,
                 "fullScreen": MirrorWindowLayout.isFullScreen(window: actual, screen: scene.screen.bounds.size),

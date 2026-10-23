@@ -4,7 +4,9 @@ A standalone UIKit reproduction for testing fixed window sizes on iPadOS 27 usin
 
 The test displays a synthetic cyan rectangle inside a black view, changes its picture aspect from 1080x2340 to 1080x498 and back, and measures both the content and the outside window frame. It also attempts a manual corner resize. Screenshots and JSON reports are retained for one day.
 
-The current candidate reproduces an earlier implementation: set the preferred content size before displaying the window, then apply maximum=infinite, minimum=preferred, maximum=preferred after viewDidAppear. This is a reproduction under test, not a verified fix. A failing workflow may be the expected result if iPadOS does not honor the requested size.
+The baseline reproduces an earlier implementation: set the preferred content size before displaying the window, then apply maximum=infinite, minimum=preferred, maximum=preferred after viewDidAppear. [Its first complete run](https://github.com/AqiguaiA/padphone-window-probe/actions/runs/40038949121) failed all three window phases: the outer frame did not immediately adopt the requested dimensions.
+
+The current candidate also asks the scene to refresh its geometry with all supported interface orientations, without requesting a video-specific rotation. Full localized geometry errors are included in the JSON report. This is a reproduction under test, not a verified fix. A failing workflow may be the expected result if iPadOS does not honor the requested size.
 
 Run the manually triggered **Test actual iPadOS window sizing** workflow. It uses standard macOS and xcode-27 GitHub-hosted runners. The first job compiles the app with SDK 26.5; the second builds the UI test driver with SDK 27 and runs that prebuilt app on an iPad simulator.
 
