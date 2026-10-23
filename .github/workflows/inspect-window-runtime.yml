@@ -14,18 +14,18 @@ jobs:
           import json, subprocess
           from pathlib import Path
           def read(*args):
-              return subprocess.check_output(args, text=True, timeout=30).strip()
-          listing = json.loads(read('xcrun', 'simctl', 'list', '-j'))
-          runtime = next(r for r in listing['runtimes'] if r.get('isAvailable') and r['name'].startswith('iOS 27.0'))
-          kind = next(d for d in listing['devicetypes'] if 'iPad Pro' in d['name'] and '13-inch' in d['name'] and 'M4' in d['name'])
-          device = read('xcrun', 'simctl', 'create', 'Window API inspection', kind['identifier'], runtime['identifier'])
-          subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, timeout=30)
-          subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True, timeout=180)
+              return subprocess.check_output(args, text=True, timeout=90).strip()
           binary = Path('build/inspect-runtime').resolve()
           binary.parent.mkdir(exist_ok=True)
           sdk = read('xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path')
           subprocess.run(['xcrun', 'clang', '-isysroot', sdk, '-target', 'arm64-apple-ios27.0-simulator',
                           '-fobjc-arc', '-framework', 'Foundation', '-framework', 'UIKit',
                           'tests/WindowProbe/Inspect.m', '-o', str(binary)], check=True, timeout=90)
+          listing = json.loads(read('xcrun', 'simctl', 'list', '-j'))
+          runtime = next(r for r in listing['runtimes'] if r.get('isAvailable') and r['name'].startswith('iOS 27.0'))
+          kind = next(d for d in listing['devicetypes'] if 'iPad Pro' in d['name'] and '13-inch' in d['name'] and 'M4' in d['name'])
+          device = read('xcrun', 'simctl', 'create', 'Window API inspection', kind['identifier'], runtime['identifier'])
+          subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, timeout=30)
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True, timeout=180)
           subprocess.run(['xcrun', 'simctl', 'spawn', device, str(binary)], check=True, timeout=60)
           PY
