@@ -1,0 +1,11 @@
+build/
+*.xcodeproj/
+__pycache__/
+*.ipa
+*.p12
+*.p8
+*.pem
+*.key
+*.mobiledevicepairing
+*.mobileprovision
+.env*

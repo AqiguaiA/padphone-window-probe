@@ -1,0 +1,63 @@
+name: Test actual iPadOS window sizing
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  build_probe:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        device_family: ['1,2']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile the probe with the released app's SDK
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec tests/WindowProbe/project.yml
+          xcodebuild -project tests/WindowProbe/WindowProbe.xcodeproj -scheme WindowProbe \
+            -sdk iphonesimulator26.5 -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/prebuilt -configuration Debug \
+            PROBE_DEVICE_FAMILY=${{ matrix.device_family }} CODE_SIGNING_ALLOWED=NO build
+          xcrun vtool -show-build build/prebuilt/Build/Products/Debug-iphonesimulator/WindowProbe.app/WindowProbe
+          tar -czf build/window-probe-sdk26.tar.gz -C build/prebuilt/Build/Products/Debug-iphonesimulator WindowProbe.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: window-probe-sdk26-family-${{ matrix.device_family }}
+          path: build/window-probe-sdk26.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+  window:
+    needs: build_probe
+    runs-on: xcode-27
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        device_family: ['1,2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: window-probe-sdk26-family-${{ matrix.device_family }}
+          path: build/prebuilt
+      - name: Extract the SDK 26.5 probe
+        run: tar -xzf build/prebuilt/window-probe-sdk26.tar.gz -C build/prebuilt
+      - name: Install test project generator
+        run: brew install xcodegen
+      - name: Test native iPadOS 27 portrait and landscape window sizes
+        env:
+          PROBE_DEVICE_FAMILY: ${{ matrix.device_family }}
+          PROBE_PREBUILT_APP: build/prebuilt/WindowProbe.app
+        run: python3 scripts/test-window-simulator.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-test-evidence-family-${{ matrix.device_family }}
+          path: |
+            build/window-probe/window-report.json
+            build/window-probe/window-external-report.json
+            build/window-probe/window.png
+            build/window-probe/TestResults.xcresult
+          if-no-files-found: warn
+          retention-days: 1
