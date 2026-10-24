@@ -13,7 +13,6 @@ targets:
     platform: iOS
     sources:
       - Probe.swift
-      - SceneSizeRequest.m
       - ../../app/MirrorWindowLayout.swift
     info:
       path: ../../build/window-probe/Info.plist
@@ -34,7 +33,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: local.padphone.windowprobe
-        SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/SceneSizeRequest.h
         TARGETED_DEVICE_FAMILY: $(PROBE_DEVICE_FAMILY)
   WindowProbeTests:
     type: bundle.ui-testing

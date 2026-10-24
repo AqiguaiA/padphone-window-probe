@@ -6,9 +6,11 @@ The test displays a synthetic cyan rectangle inside a black view, changes its pi
 
 The baseline reproduces an earlier implementation: set the preferred content size before displaying the window, then apply maximum=infinite, minimum=preferred, maximum=preferred after viewDidAppear. [Its first complete run](https://github.com/AqiguaiA/padphone-window-probe/actions/runs/40038949121) failed all three window phases: the outer frame did not immediately adopt the requested dimensions.
 
-The current candidate submits a preferred content size through the scene's own client settings, using an internal method whose selector and CGSize argument encoding were verified on the iPadOS 27 simulator. The report includes the client setting readback and the actual window dimensions. This is an isolated experiment, not a verified fix; it does not change entitlements or platform validation.
+The working tree keeps this baseline and the read-only metadata inspection. It is a reproduction of an unresolved sizing issue, not a verified fix. Failed experimental geometry requests are retained only in Git history.
 
 [The geometry refresh run](https://github.com/AqiguaiA/padphone-window-probe/actions/runs/40040094754) also failed all three outside-window assertions with the same dimensions. XCTest finished its assertions, but the xcodebuild process timed out during cleanup, before the script could copy the JSON files. The textual job log retains the three measurements; the missing JSON does not establish whether the geometry request itself returned an error.
+
+[The scene client-size request run](https://github.com/AqiguaiA/padphone-window-probe/actions/runs/40044789122), at commit 9d9f615, also failed all three phases. The internal preferredContentSize request was supported and read back exactly, but the actual outer windows remained 538x865.5, 1201x865.5 and 1201x865.5. This demonstrates that submitting that preference did not resize the native window. XCTest completed all assertions; xcodebuild then timed out during cleanup, and the updated harness collected both JSON reports. The internal setter experiment was removed from the working tree.
 
 Run the manually triggered **Test actual iPadOS window sizing** workflow. It uses standard macOS and xcode-27 GitHub-hosted runners. The first job compiles the app with SDK 26.5; the second builds the UI test driver with SDK 27 and runs that prebuilt app on an iPad simulator.
 
