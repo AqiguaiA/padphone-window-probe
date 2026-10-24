@@ -31,7 +31,7 @@ final class ProbeController: UIViewController {
     private let picture = UIView()
     private var video = CGSize(width: 1080, height: 2340)
     private var reports: [[String: Any]] = []
-    private var geometryErrors: [String] = []
+    private var clientSizeRequestSupported = false
     private let start = UIButton(type: .system)
 
     override func viewDidLoad() {
@@ -111,16 +111,11 @@ final class ProbeController: UIViewController {
             limits.minimumSize = preferredContentSize
             limits.maximumSize = preferredContentSize
         }
-        setNeedsUpdateOfSupportedInterfaceOrientations()
-        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .all)) { [weak self] error in
-            let error = error as NSError
-            self?.geometryErrors.append("\(error.domain):\(error.code) \(error.localizedDescription)")
-        }
+        clientSizeRequestSupported = ProbeRequestSceneContentSize(scene, preferredContentSize)
     }
 
     private func runPhase(_ phase: Int) {
         guard let scene = view.window?.windowScene else { return }
-        geometryErrors = []
         video = phase == 1 ? CGSize(width: 1080, height: 498) : CGSize(width: 1080, height: 2340)
         apply(in: scene)
         view.setNeedsLayout()
@@ -139,6 +134,9 @@ final class ProbeController: UIViewController {
                 return
             }
             let actual = window.bounds.size
+            let clientPreferred = ProbeSceneClientPreferredSize(scene)
+            let clientSizeError = max(abs(clientPreferred.width - preferredContentSize.width),
+                abs(clientPreferred.height - preferredContentSize.height))
             let image = AVMakeRect(aspectRatio: video, insideRect: view.bounds)
             let physical = window.convert(window.bounds, to: scene.screen.coordinateSpace)
             let physicalImage = view.convert(image, to: scene.screen.coordinateSpace)
@@ -160,12 +158,14 @@ final class ProbeController: UIViewController {
                 "maximum": dimensions(scene.sizeRestrictions?.maximumSize ?? .zero),
                 "deviceIdiom": UIDevice.current.userInterfaceIdiom.rawValue,
                 "interfaceOrientation": scene.effectiveGeometry.interfaceOrientation.rawValue,
-                "geometryErrors": geometryErrors,
+                "clientSizeRequestSupported": clientSizeRequestSupported,
+                "sceneClientPreferredSize": dimensions(clientPreferred), "clientSizeError": clientSizeError,
                 "physicalWindow": dimensions(physical.size),
                 "physicalEdgeGap": physicalGap, "orientationGap": orientationGap,
                 "fullScreen": MirrorWindowLayout.isFullScreen(window: actual, screen: scene.screen.bounds.size),
                 "edgeGap": gap, "sizeError": sizeError,
-                "passed": gap <= 1 && sizeError <= 1 && physicalGap <= 1 && orientationGap <= 1
+                "passed": clientSizeRequestSupported && clientSizeError <= 1 && gap <= 1 &&
+                    sizeError <= 1 && physicalGap <= 1 && orientationGap <= 1
             ])
             let destination = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("window-report.json")

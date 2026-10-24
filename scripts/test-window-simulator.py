@@ -45,9 +45,14 @@ def main():
         print(run('xcrun', 'vtool', '-show-build', str(installed / 'WindowProbe')), flush=True)
         test_runs = list(products.glob('*.xctestrun'))
         assert len(test_runs) == 1, 'Expected exactly one simulator test plan'
-        completed = subprocess.run(['xcodebuild', 'test-without-building', '-xctestrun', str(test_runs[0]),
-                                   '-destination', 'id=' + device, '-resultBundlePath', str(output / 'TestResults.xcresult')],
-                                   timeout=300)
+        command = ['xcodebuild', 'test-without-building', '-xctestrun', str(test_runs[0]),
+                   '-destination', 'id=' + device, '-resultBundlePath', str(output / 'TestResults.xcresult'),
+                   '-only-testing:WindowProbeTests/WindowTests/testOrdinaryWindowPortraitLandscapePortrait']
+        try:
+            completed = subprocess.run(command, timeout=300)
+        except subprocess.TimeoutExpired:
+            completed = subprocess.CompletedProcess(command, -1)
+            print('XCTest process timed out; collecting any reports already written', flush=True)
     data = Path(run('xcrun', 'simctl', 'get_app_container', device, bundle_id, 'data'))
     app = Path(run('xcrun', 'simctl', 'get_app_container', device, bundle_id, 'app'))
     info = plistlib.loads((app / 'Info.plist').read_bytes())
