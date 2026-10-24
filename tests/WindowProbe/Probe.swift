@@ -1,5 +1,6 @@
 import UIKit
 import AVFoundation
+import ObjectiveC
 
 @main
 final class ProbeApp: UIResponder, UIApplicationDelegate {
@@ -63,7 +64,41 @@ final class ProbeController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if ProcessInfo.processInfo.arguments.contains("--inspect-window-apis") { writeWindowAPIs() }
         if let scene = view.window?.windowScene { apply(in: scene) }
+    }
+
+    private func writeWindowAPIs() {
+        let names = ["UIWindowScene", "UIScene", "UIWindowSceneGeometryPreferencesIOS",
+            "UIWindowSceneGeometryPreferences", "UISceneSizeRestrictions", "FBSScene",
+            "FBSSceneClientSettings", "FBSMutableSceneClientSettings",
+            "UIApplicationSceneClientSettings", "UIMutableApplicationSceneClientSettings"]
+        let terms = ["size", "frame", "geometry", "restric", "resiz", "clientsetting"]
+        var interfaces: [[String: Any]] = []
+        for name in names {
+            guard let cls = NSClassFromString(name) else {
+                interfaces.append(["class": name, "present": false]); continue
+            }
+            var count: UInt32 = 0
+            var entries: [[String: String]] = []
+            if let methods = class_copyMethodList(cls, &count) {
+                for index in 0..<Int(count) {
+                    let selector = NSStringFromSelector(method_getName(methods[index]))
+                    if terms.contains(where: { selector.lowercased().contains($0) }) {
+                        entries.append(["selector": selector,
+                            "encoding": method_getTypeEncoding(methods[index]).map { String(cString: $0) } ?? ""])
+                    }
+                }
+                free(methods)
+            }
+            interfaces.append(["class": name, "present": true, "methods": entries])
+        }
+        let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("window-apis.json")
+        do {
+            try JSONSerialization.data(withJSONObject: interfaces, options: [.prettyPrinted, .sortedKeys])
+                .write(to: path, options: .atomic)
+        } catch { fatalError("Could not save window API metadata: \(error)") }
     }
 
     func apply(in scene: UIWindowScene, corrected: CGSize? = nil) {

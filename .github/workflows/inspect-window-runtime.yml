@@ -5,27 +5,47 @@ permissions:
 jobs:
   inspect:
     runs-on: xcode-27
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - name: Compile the existing probe before booting the simulator
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec tests/WindowProbe/project.yml
+          xcodebuild -project tests/WindowProbe/WindowProbe.xcodeproj -target WindowProbe \
+            -sdk iphonesimulator -configuration Debug SYMROOT="$PWD/build/metadata" \
+            PROBE_DEVICE_FAMILY=1,2 CODE_SIGNING_ALLOWED=NO build
       - name: Read window class metadata on iPadOS 27
         run: |
           python3 - <<'PY'
-          import json, subprocess
+          import json, subprocess, shutil, time
           from pathlib import Path
           def read(*args):
               return subprocess.check_output(args, text=True, timeout=90).strip()
-          binary = Path('build/inspect-runtime').resolve()
-          binary.parent.mkdir(exist_ok=True)
-          sdk = read('xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path')
-          subprocess.run(['xcrun', 'clang', '-isysroot', sdk, '-target', 'arm64-apple-ios27.0-simulator',
-                          '-fobjc-arc', '-framework', 'Foundation', '-framework', 'UIKit',
-                          'tests/WindowProbe/Inspect.m', '-o', str(binary)], check=True, timeout=90)
           listing = json.loads(read('xcrun', 'simctl', 'list', '-j'))
           runtime = next(r for r in listing['runtimes'] if r.get('isAvailable') and r['name'].startswith('iOS 27.0'))
           kind = next(d for d in listing['devicetypes'] if 'iPad Pro' in d['name'] and '13-inch' in d['name'] and 'M4' in d['name'])
           device = read('xcrun', 'simctl', 'create', 'Window API inspection', kind['identifier'], runtime['identifier'])
           subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, timeout=30)
           subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True, timeout=180)
-          subprocess.run(['xcrun', 'simctl', 'spawn', device, str(binary)], check=True, timeout=60)
+          app = Path('build/metadata/Debug-iphonesimulator/WindowProbe.app').resolve()
+          subprocess.run(['xcrun', 'simctl', 'install', device, str(app)], check=True, timeout=90)
+          read('xcrun', 'simctl', 'launch', device, 'local.padphone.windowprobe', '--inspect-window-apis')
+          container = Path(read('xcrun', 'simctl', 'get_app_container', device, 'local.padphone.windowprobe', 'data'))
+          report = container / 'Documents/window-apis.json'
+          for attempt in range(30):
+              if report.exists(): break
+              time.sleep(1)
+          assert report.exists(), 'App did not produce window metadata'
+          result = json.loads(report.read_text())
+          assert any(row['class'] == 'UIWindowScene' and row.get('methods') for row in result)
+          shutil.copy2(report, 'build/metadata/window-apis.json')
+          print(json.dumps(result, indent=2), flush=True)
           PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-api-metadata
+          path: build/metadata/window-apis.json
+          if-no-files-found: warn
+          retention-days: 1
