@@ -1,0 +1,64 @@
+name: Build encrypted PadPhone source on a free standard Mac
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install build tools
+        run: |
+          brew install xcodegen gnupg
+          if ! command -v cargo >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Decrypt reviewed source
+        env:
+          BUILD_PASSPHRASE: ${{ secrets.PADPHONE_BUILD_PASSPHRASE }}
+        run: |
+          test -n "$BUILD_PASSPHRASE"
+          mkdir -m 700 "$RUNNER_TEMP/padphone-gnupg"
+          mkdir "$RUNNER_TEMP/padphone-source"
+          printf '%s' "$BUILD_PASSPHRASE" | gpg --no-options --homedir "$RUNNER_TEMP/padphone-gnupg" --batch --yes --pinentry-mode loopback --passphrase-fd 0 --output "$RUNNER_TEMP/source.tar" --decrypt private-build/source.tar.gpg
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          expected=json.loads(pathlib.Path('private-build/provenance.json').read_text())['source_archive_sha256']
+          actual=hashlib.sha256((pathlib.Path(os.environ['RUNNER_TEMP'])/'source.tar').read_bytes()).hexdigest()
+          assert actual == expected, 'Source checksum mismatch'
+          PY
+          tar -xf "$RUNNER_TEMP/source.tar" -C "$RUNNER_TEMP/padphone-source"
+      - name: Run regression tests and build unsigned IPA
+        run: |
+          cd "$RUNNER_TEMP/padphone-source"
+          bash scripts/build-ios.sh > "$RUNNER_TEMP/padphone-build.log" 2>&1
+      - name: Encrypt output and diagnostics
+        if: always()
+        env:
+          BUILD_PASSPHRASE: ${{ secrets.PADPHONE_BUILD_PASSPHRASE }}
+        run: |
+          test -n "$BUILD_PASSPHRASE"
+          python3 - <<'PY'
+          import os,pathlib,tarfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          source=root/'padphone-source'
+          paths=[root/'padphone-build.log',source/'build/PadPhone-unsigned.ipa',source/'build/licenses',source/'LICENSE',source/'THIRD_PARTY.md']
+          paths.extend((source/'build').glob('*-source.tar'))
+          with tarfile.open(root/'padphone-result.tar.gz','w:gz') as archive:
+              archive.add('private-build/provenance.json',arcname='provenance.json')
+              for path in paths:
+                  if path.exists(): archive.add(path,arcname=path.name)
+          PY
+          printf '%s' "$BUILD_PASSPHRASE" | gpg --no-options --homedir "$RUNNER_TEMP/padphone-gnupg" --batch --yes --pinentry-mode loopback --passphrase-fd 0 --symmetric --cipher-algo AES256 --s2k-digest-algo SHA256 --s2k-count 65011712 --output "$RUNNER_TEMP/padphone-result.tar.gz.gpg" "$RUNNER_TEMP/padphone-result.tar.gz"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: padphone-encrypted-result
+          path: ${{ runner.temp }}/padphone-result.tar.gz.gpg
+          retention-days: 1
+          if-no-files-found: error
