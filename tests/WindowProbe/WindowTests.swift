@@ -3,6 +3,13 @@ import UIKit
 import AVFoundation
 
 final class WindowTests: XCTestCase {
+    func testWindowAPIs() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--inspect-window-apis"]
+        app.launch()
+        XCTAssertTrue(app.buttons["windowAPIsReady"].waitForExistence(timeout: 30))
+    }
+
     func testOrdinaryWindowPortraitLandscapePortrait() throws {
         XCTAssertEqual(UIDevice.current.userInterfaceIdiom, .pad)
         XCUIDevice.shared.orientation = .landscapeLeft

@@ -64,7 +64,9 @@ final class ProbeController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if ProcessInfo.processInfo.arguments.contains("--inspect-window-apis") { writeWindowAPIs() }
+        if ProcessInfo.processInfo.arguments.contains("--inspect-window-apis") {
+            writeWindowAPIs(); return
+        }
         if let scene = view.window?.windowScene { apply(in: scene) }
     }
 
@@ -98,6 +100,7 @@ final class ProbeController: UIViewController {
         do {
             try JSONSerialization.data(withJSONObject: interfaces, options: [.prettyPrinted, .sortedKeys])
                 .write(to: path, options: .atomic)
+            start.accessibilityIdentifier = "windowAPIsReady"
         } catch { fatalError("Could not save window API metadata: \(error)") }
     }
 
