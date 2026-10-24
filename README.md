@@ -21,3 +21,6 @@ Use free standard runners in this public repository only. Do not enable paid or 
 [Runtime inspection](https://github.com/AqiguaiA/padphone-window-probe/actions/runs/40043920320) completed successfully through XCTest. Earlier direct simctl installation attempts timed out before the app ran, so those attempts provide no evidence about interface support. The metadata artifact contains only system class names, selectors and method type encodings.
 
 Source is licensed under GPL-3.0; see LICENSE.
+
+A one-time [free standard Mac build](https://github.com/AqiguaiA/padphone-window-probe/actions/runs/40048350599) compiled the main application's 0.8.0-window rollback after its regression suite passed, using encrypted source input and encrypted output only 喵~
+The temporary workflow, encrypted input, build secret and online output artifact were removed after the result was retrieved and verified locally; no plaintext main-application source, signing credentials, pairing data or unencrypted IPA was published 喵~
